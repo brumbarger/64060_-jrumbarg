@@ -1,0 +1,108 @@
+---
+title: "Final Project-Telco Customer Churn"
+author: "brandon rumbarger"
+date: "2026-04-29"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(tidyverse)
+library(caret)
+library(pROC)
+library(ggplot2)
+```
+
+```{r}
+data <- read.csv("C:/Users/brumb/OneDrive/Documents/R/WA_Fn-UseC_-Telco-Customer-Churn.csv")
+
+
+str(data)
+summary(data)
+
+```
+
+**Data Preparation**
+```{r}
+data <- data %>%
+  mutate(
+    TotalCharges = as.numeric(ifelse(TotalCharges == "", NA, TotalCharges)),
+    Churn = as.factor(Churn)
+  ) %>%
+  na.omit()
+
+data <- na.omit(data)
+
+data$Churn <- as.factor(data$Churn)
+```
+
+**Train-Test Split**
+```{r}
+set.seed(123)
+
+trainIndex <- createDataPartition(data$Churn, p = 0.7, list = FALSE)
+train <- data[trainIndex, ]
+test  <- data[-trainIndex, ]
+
+
+train$customerID <- NULL
+test$customerID  <- NULL
+```
+
+**Model Development**
+```{r}
+model <- glm(Churn ~ tenure + MonthlyCharges + Contract,
+             data = train,
+             family = "binomial")
+
+summary(model)
+
+```
+
+**Model Evaluation**
+```{r}
+probabilities <- predict(model, test, type = "response")
+
+predictions <- ifelse(probabilities > 0.5, "Yes", "No")
+predictions <- as.factor(predictions)
+```
+
+```{r}
+confusionMatrix(predictions, test$Churn)
+```
+**Roc Curve**
+```{r}
+roc_obj <- roc(test$Churn, probabilities)
+
+plot(roc_obj, col = "blue", main = "ROC Curve")
+auc(roc_obj)
+
+```
+
+**History of Monthly Changes**
+```{r}
+ggplot(data, aes(x = MonthlyCharges, fill = Churn)) +
+  geom_histogram(bins = 30, alpha = 0.6)
+```
+Customers with higher monthly charges are more likely to churn, as seen by the greater concentration of churned customers at higher price levels.
+
+**Contact Type vs Churn**
+```{r}
+ggplot(data, aes(x = Contract, fill = Churn)) +
+  geom_bar(position = "fill") +
+  ylab("Proportion") +
+  ggtitle("Churn Rate by Contract Type")
+```
+Customers on month-to-month contracts have significantly higher churn rates compared to those on long-term contracts.
+
+**Odds Ratios**
+```{r}
+exp(coef(model))
+```
+Higher monthly charges increase churn risk
+Longer tenure reduces churn
+Long-term contracts significantly reduce churn
